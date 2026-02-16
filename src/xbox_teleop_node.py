@@ -47,7 +47,7 @@ class XboxTeleopNode(Node):
         super().__init__('xbox_teleop_node')
         
         # Declare parameters
-        self.declare_parameter('max_linear_vel', 1.0)   # m/s (matches Teensy VMAX)
+        self.declare_parameter('max_linear_vel', 1.2)   # m/s (Pioneer 3-DX max speed)
         self.declare_parameter('max_angular_vel', 1.5)  # rad/s (matches Teensy OMEGAMAX)
         self.declare_parameter('normal_scale', 1.0)  # speed multiplier for normal mode
         self.declare_parameter('turbo_scale', 1.0)   # speed multiplier when LT+RT held

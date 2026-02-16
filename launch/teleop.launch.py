@@ -54,10 +54,10 @@ def generate_launch_description():
         executable='/ros2_ws/src/xbox_teleop_node.py',
         name='xbox_teleop_node',
         parameters=[{
-            'max_linear_vel': 1.0,   # m/s (matches Teensy VMAX)
-            'max_angular_vel': 1.5,  # rad/s (matches Teensy OMEGAMAX)
-            'normal_scale': 0.3,     # reduced speed by default
-            'turbo_scale': 1.0,      # 100% speed when LT+RT held
+            'max_linear_vel': 1.2,   # m/s (Pioneer 3-DX max speed)
+            'max_angular_vel': 1.5,  # rad/s
+            'normal_scale': 1.0,     # 100% speed at full stick
+            'turbo_scale': 1.0,      # same as normal (no separate turbo)
             'deadzone': 0.1,
             'smoothing_tau': 0.08,   # Snappy response
             'publish_rate': 50.0,
