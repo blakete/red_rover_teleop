@@ -48,7 +48,7 @@ def generate_launch_description():
     )
     
     # Xbox teleop node - converts joy to Twist
-    # Full stick = full speed (no turbo mode)
+    # Normal mode: 50% speed | Turbo (hold LT+RT): 100% speed
     teleop_node = Node(
         package=None,  # Not a package, running script directly
         executable='/ros2_ws/src/xbox_teleop_node.py',
@@ -56,6 +56,8 @@ def generate_launch_description():
         parameters=[{
             'max_linear_vel': 1.0,   # m/s (matches Teensy VMAX)
             'max_angular_vel': 1.5,  # rad/s (matches Teensy OMEGAMAX)
+            'normal_scale': 0.3,     # reduced speed by default
+            'turbo_scale': 1.0,      # 100% speed when LT+RT held
             'deadzone': 0.1,
             'smoothing_tau': 0.08,   # Snappy response
             'publish_rate': 50.0,

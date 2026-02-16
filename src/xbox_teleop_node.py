@@ -8,14 +8,14 @@ geometry_msgs/Twist commands for differential drive control.
 Control Scheme:
     Left Stick Y:   Forward/Backward (linear velocity)
     Left Stick X:   Turn left/right (angular velocity)
-    # LB (Left Bumper): Dead man's switch (disabled)
+    LT + RT (hold): Turbo mode (full speed)
     A button:       Arm motors
     B button:       Disarm motors (emergency stop)
 
 Safety Features:
     - Starts disarmed (must press A to enable movement)
-    # - Dead man's switch (LB) must be held for non-zero output (disabled)
-    - Full stick = full speed (1.0 m/s linear, 1.5 rad/s angular)
+    - Normal mode: 50% max speed at full stick deflection
+    - Turbo mode (hold both triggers): 100% max speed
     - Immediate zero on release of stick
     - Zero command sent on shutdown
 """
@@ -36,6 +36,8 @@ class XboxTeleopNode(Node):
     # Note: These may vary by driver. We'll log actual values to debug.
     AXIS_LEFT_X = 0      # Left Stick X (turn)
     AXIS_LEFT_Y = 1      # Left Stick Y (forward/back)
+    AXIS_LEFT_TRIGGER = 2   # LT trigger
+    AXIS_RIGHT_TRIGGER = 5  # RT trigger
     
     BUTTON_A = 0         # Arm
     BUTTON_B = 1         # Disarm
@@ -47,6 +49,8 @@ class XboxTeleopNode(Node):
         # Declare parameters
         self.declare_parameter('max_linear_vel', 1.0)   # m/s (matches Teensy VMAX)
         self.declare_parameter('max_angular_vel', 1.5)  # rad/s (matches Teensy OMEGAMAX)
+        self.declare_parameter('normal_scale', 0.3)  # speed multiplier for normal mode
+        self.declare_parameter('turbo_scale', 1.0)   # speed multiplier when LT+RT held
         self.declare_parameter('deadzone', 0.15)
         self.declare_parameter('publish_rate', 50.0)
         self.declare_parameter('debug', True)  # Enable debug logging
@@ -54,12 +58,15 @@ class XboxTeleopNode(Node):
         # Get parameters
         self.max_linear_vel = self.get_parameter('max_linear_vel').value
         self.max_angular_vel = self.get_parameter('max_angular_vel').value
+        self.normal_scale = self.get_parameter('normal_scale').value
+        self.turbo_scale = self.get_parameter('turbo_scale').value
         self.deadzone = self.get_parameter('deadzone').value
         self.publish_rate = self.get_parameter('publish_rate').value
         self.debug = self.get_parameter('debug').value
         
         # State
         self.armed = False
+        self.turbo = False
         self.deadman_pressed = False
         self.prev_deadman_pressed = False  # For edge detection
         
@@ -92,11 +99,12 @@ class XboxTeleopNode(Node):
         self.get_logger().info('=' * 50)
         self.get_logger().info('Controls:')
         self.get_logger().info('  Left Stick: Move forward/back and turn')
-        # self.get_logger().info('  LB (hold): Dead man\'s switch')  # Deadman disabled
+        self.get_logger().info('  LT + RT (hold both): Turbo mode')
         self.get_logger().info('  A: Arm motors')
         self.get_logger().info('  B: Disarm motors')
         self.get_logger().info('')
         self.get_logger().info(f'Max speeds: {self.max_linear_vel} m/s linear, {self.max_angular_vel} rad/s angular')
+        self.get_logger().info(f'Normal mode: {self.normal_scale*100:.0f}% speed | Turbo (LT+RT): {self.turbo_scale*100:.0f}% speed')
         self.get_logger().info('Press A to arm, then use left stick to drive.')
         self.get_logger().info(f'Debug mode: {self.debug}')
         self.get_logger().info('Status: DISARMED')
@@ -108,10 +116,10 @@ class XboxTeleopNode(Node):
             return
             
         armed_str = "ARMED" if self.armed else "DISARMED"
-        # deadman_str = "HELD" if self.deadman_pressed else "RELEASED"  # Deadman disabled
+        mode_str = "TURBO" if self.turbo else "NORMAL"
         
         self.get_logger().info(
-            f'[STATUS] {armed_str} | '
+            f'[STATUS] {armed_str} | {mode_str} | '
             f'Joy msgs: {self.joy_msg_count} | '
             f'Target: lin={self.target_linear:.3f} ang={self.target_angular:.3f}'
         )
@@ -171,23 +179,23 @@ class XboxTeleopNode(Node):
             self.arm_pub.publish(arm_msg)
             self.get_logger().info('>>> Motors DISARMED (published to /arm topic) <<<')
         
-        # Dead man's switch - DISABLED
-        # self.prev_deadman_pressed = self.deadman_pressed
-        # self.deadman_pressed = msg.buttons[self.BUTTON_LB] == 1
+        # Turbo mode: hold both LT and RT triggers
+        lt_pressed = msg.axes[self.AXIS_LEFT_TRIGGER] < 0.0
+        rt_pressed = msg.axes[self.AXIS_RIGHT_TRIGGER] < 0.0
+        prev_turbo = self.turbo
+        self.turbo = lt_pressed and rt_pressed
         
-        # Log deadman state changes
-        # if self.deadman_pressed and not self.prev_deadman_pressed:
-        #     self.get_logger().info('Deadman switch PRESSED (LB held)')
-        # elif not self.deadman_pressed and self.prev_deadman_pressed:
-        #     self.get_logger().info('Deadman switch RELEASED (LB released)')
+        if self.turbo and not prev_turbo:
+            self.get_logger().info('>>> TURBO MODE ON (LT+RT held) <<<')
+        elif not self.turbo and prev_turbo:
+            self.get_logger().info('>>> TURBO MODE OFF <<<')
         
         # Get stick values
-        # Note: On Xbox 360 wireless, pushing stick UP gives positive Y
-        # So we DON'T invert - forward stick = positive velocity
+        # Invert Y axis so pushing stick UP = positive (forward) velocity
         raw_forward = msg.axes[self.AXIS_LEFT_Y]
         raw_turn = msg.axes[self.AXIS_LEFT_X]
-        forward = raw_forward  # No inversion needed for this controller
-        turn = raw_turn
+        forward = raw_forward
+        turn = -raw_turn
         
         # Apply deadzone
         forward_dz = self.apply_deadzone(forward)
@@ -201,10 +209,11 @@ class XboxTeleopNode(Node):
                 throttle_duration_sec=0.5
             )
         
-        # Compute target velocities (full stick = full speed)
-        if self.armed:  # Deadman check removed
-            self.target_linear = forward_dz * self.max_linear_vel
-            self.target_angular = turn_dz * self.max_angular_vel
+        # Compute target velocities with speed scaling
+        if self.armed:
+            scale = self.turbo_scale if self.turbo else self.normal_scale
+            self.target_linear = forward_dz * self.max_linear_vel * scale
+            self.target_angular = turn_dz * self.max_angular_vel * scale
             
             # Log non-zero commands
             if self.debug and (abs(self.target_linear) > 0.01 or abs(self.target_angular) > 0.01):
