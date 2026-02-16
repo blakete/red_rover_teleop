@@ -49,7 +49,7 @@ class XboxTeleopNode(Node):
         # Declare parameters
         self.declare_parameter('max_linear_vel', 1.0)   # m/s (matches Teensy VMAX)
         self.declare_parameter('max_angular_vel', 1.5)  # rad/s (matches Teensy OMEGAMAX)
-        self.declare_parameter('normal_scale', 0.3)  # speed multiplier for normal mode
+        self.declare_parameter('normal_scale', 1.0)  # speed multiplier for normal mode
         self.declare_parameter('turbo_scale', 1.0)   # speed multiplier when LT+RT held
         self.declare_parameter('deadzone', 0.15)
         self.declare_parameter('publish_rate', 50.0)
@@ -213,7 +213,7 @@ class XboxTeleopNode(Node):
         if self.armed:
             scale = self.turbo_scale if self.turbo else self.normal_scale
             self.target_linear = forward_dz * self.max_linear_vel * scale
-            self.target_angular = turn_dz * self.max_angular_vel * scale
+            self.target_angular = -turn_dz * self.max_angular_vel * scale
             
             # Log non-zero commands
             if self.debug and (abs(self.target_linear) > 0.01 or abs(self.target_angular) > 0.01):
