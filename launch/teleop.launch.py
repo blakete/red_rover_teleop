@@ -54,8 +54,8 @@ def generate_launch_description():
         executable='/ros2_ws/src/xbox_teleop_node.py',
         name='xbox_teleop_node',
         parameters=[{
-            'max_linear_vel': 1.2,   # m/s (Pioneer 3-DX max speed)
-            'max_angular_vel': 1.5,  # rad/s
+            'max_linear_vel': 1.5,   # m/s (pushing beyond 3-DX rated 1.2)
+            'max_angular_vel': 3.0,  # rad/s (3-DX hardware limit ~7.3 rad/s)
             'normal_scale': 1.0,     # 100% speed at full stick
             'turbo_scale': 1.0,      # same as normal (no separate turbo)
             'deadzone': 0.1,

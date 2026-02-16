@@ -47,8 +47,8 @@ class XboxTeleopNode(Node):
         super().__init__('xbox_teleop_node')
         
         # Declare parameters
-        self.declare_parameter('max_linear_vel', 1.2)   # m/s (Pioneer 3-DX max speed)
-        self.declare_parameter('max_angular_vel', 1.5)  # rad/s (matches Teensy OMEGAMAX)
+        self.declare_parameter('max_linear_vel', 1.5)   # m/s (pushing beyond 3-DX rated 1.2)
+        self.declare_parameter('max_angular_vel', 3.0)  # rad/s (3-DX hardware limit ~7.3)
         self.declare_parameter('normal_scale', 1.0)  # speed multiplier for normal mode
         self.declare_parameter('turbo_scale', 1.0)   # speed multiplier when LT+RT held
         self.declare_parameter('deadzone', 0.15)
@@ -212,7 +212,7 @@ class XboxTeleopNode(Node):
         # Compute target velocities with speed scaling
         if self.armed:
             scale = self.turbo_scale if self.turbo else self.normal_scale
-            self.target_linear = forward_dz * self.max_linear_vel * scale
+            self.target_linear = -forward_dz * self.max_linear_vel * scale
             self.target_angular = -turn_dz * self.max_angular_vel * scale
             
             # Log non-zero commands
